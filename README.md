@@ -1,6 +1,6 @@
 # mri-to-speech
 
-Visit our [demo website](https://y-otn.github.io/mri-to-speech-demo/) for audio samples.
+Visit our [demo website](https://y-otn.github.io/mri-to-speech-demo/) for audio samples. Multi-speaker samples are available [here](https://y-otn.github.io/mri-to-speech-multi-demo/).
 
 ## Pre-requisites
 
