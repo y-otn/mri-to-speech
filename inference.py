@@ -86,3 +86,23 @@ def save_vocoder_dataset(model, scaler, ampl, wav_dir, mri_dir, py_dir_path, fil
     save_pred_spec(model, scaler, ampl, mri_dir, dir_paths[0], file_names_01, ref_frames, batch_size)
     save_pred_spec(model, scaler, ampl, mri_dir, dir_paths[1], file_names[2], ref_frames, batch_size)
     save_wav_gt_spec(ampl, wav_dir, dir_paths, file_names_01, ref_frames, rate_t, coef, n_fft, hop_length, n_mels)
+
+
+def load_mri_f0(f0_dir, mri_dir, file_name, mri_height, mri_width, mri_channels):
+    nf = np.load(os.path.join(f0_dir, file_name + '.WAV_nf.npy'))
+    base_path = os.path.join(mri_dir, file_name, file_name)
+    mris = [np.array(Image.open(base_path + f'_{nf_:04}.png')).reshape(
+        (mri_height, mri_width, mri_channels)).astype(np.float32) / 65535.0 * 255.0 for nf_ in nf]
+    return np.stack(mris)
+
+
+def test_model_f0(model, scaler, f0_dir, mri_dir, py_dir_path, file_names,
+                  mri_height, mri_width, mri_channels, batch_size):
+    out_dir_path = os.path.join(py_dir_path, 'f0')
+    os.makedirs(out_dir_path, exist_ok=True)
+    for file_name in file_names:
+        mris = load_mri_f0(f0_dir, mri_dir, file_name, mri_height, mri_width, mri_channels)
+        with tf.device('/CPU:0'):
+            ds_test = tf.data.Dataset.from_tensor_slices(mris).batch(batch_size)
+        f0s = model.predict(ds_test, verbose=1).squeeze() * scaler[1] + scaler[0]
+        np.save(os.path.join(out_dir_path, file_name + '_pred.npy'), f0s)

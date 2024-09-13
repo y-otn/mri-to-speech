@@ -96,3 +96,51 @@ def save_dataset(wav_dir, mri_dir, temp_dir_path, file_names, random_state,
     write_dataset(wavs, mris, temp_dir_path, 'train')
     write_dataset(wavs_v, mris_v, temp_dir_path, 'valid')
     return scaler
+
+
+def load_f0(f0_dir, file_names):
+    nfs, f0s = [], []
+    for file_name in file_names:
+        base_path = os.path.join(f0_dir, file_name)
+        nfs.append(np.load(base_path + '.WAV_nf.npy'))
+        f0s.append(np.load(base_path + '.WAV_f0.npy'))
+    len_f0s = [len(f0) for f0 in f0s]
+    f0s = np.concatenate(f0s)
+    mean, std = f0s.mean(), f0s.std()
+    f0s = (f0s - mean) / std
+    return nfs, np.split(f0s, np.cumsum(len_f0s[:-1])), (mean, std)
+
+
+def format_ds(ds):
+    ret_ds = []
+    for fn, nf, f0 in ds:
+        for nf_, f0_ in zip(nf, f0):
+            ret_ds.append([fn, nf_, f0_])
+    return ret_ds
+
+
+def write_dataset_f0(ds, temp_dir_path, filename):
+    with tf.io.TFRecordWriter(os.path.join(temp_dir_path, f'{filename}.tfrecord')) as writer:
+        for fn, nf, f0 in ds:
+            example = tf.train.Example(features=tf.train.Features(feature={
+                'n': tf.train.Feature(bytes_list=tf.train.BytesList(value=[fn.encode()])),
+                'p': tf.train.Feature(int64_list=tf.train.Int64List(value=[nf])),
+                'f': tf.train.Feature(float_list=tf.train.FloatList(value=[f0]))
+            }))
+            writer.write(example.SerializeToString())
+
+
+def save_dataset_f0(f0_dir, temp_dir_path, file_names, random_state):
+    print('Loading f0 files')
+    file_names_01 = file_names[0] + file_names[1]
+    nfs, f0s, scaler = load_f0(f0_dir, file_names_01)
+    train = [[fn, nf, f0] for fn, nf, f0 in zip(file_names_01, nfs, f0s)]
+    train, valid = train[:len(file_names[0])], train[len(file_names[0]):]
+    print('Saving dataset')
+    train = format_ds(train)
+    valid = format_ds(valid)
+    random.seed(random_state)
+    random.shuffle(train)
+    write_dataset_f0(train, temp_dir_path, 'train')
+    write_dataset_f0(valid, temp_dir_path, 'valid')
+    return scaler
